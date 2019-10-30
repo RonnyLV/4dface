@@ -157,30 +157,40 @@ int main(int argc, char *argv[]) {
     WeightedIsomapAveraging isomap_averaging(30.f); // merge all triangles that are facing <60� towards the camera
     PcaCoefficientMerging pca_shape_merging;
 
+    const int MAX_ATTEMPTS = 15;
+    int failed_attempts = 0;
+    float last_angle = 0.f;
+
     for (;;) {
-        cap >> frame; // get a new frame from camera
+        cap.read(frame); // get a new frame from camera
         if (frame.empty()) { // stop if we're at the end of the video
             break;
         }
 
+        unmodified_frame = frame.clone();
+
+        // Run the face detector and obtain the initial estimate using the mean landmarks:
+        vector<Rect> detected_faces;
+        face_cascade.detectMultiScale(unmodified_frame, detected_faces, 1.2, 2, 0, cv::Size(110, 110));
+        if (detected_faces.empty()) {
+            if (++failed_attempts > MAX_ATTEMPTS) {
+                cout << 0.f << endl;
+            } else {
+                cout << last_angle << endl;
+            }
+            usleep(30000);
+            continue;
+        }
+
+        failed_attempts = 0;
+
         // We do a quick check if the current face's width is <= 50 pixel. If it is, we re-initialise the tracking with the face detector.
-        if (have_face && get_enclosing_bbox(rcr::to_row(current_landmarks)).width <= 50) {
+        if (get_enclosing_bbox(rcr::to_row(current_landmarks)).width <= 50) {
             // Reinitialising because the face bounding-box width is <= 50 px
             have_face = false;
         }
 
-        unmodified_frame = frame.clone();
-
         if (!have_face) {
-            // Run the face detector and obtain the initial estimate using the mean landmarks:
-            vector<Rect> detected_faces;
-            face_cascade.detectMultiScale(unmodified_frame, detected_faces, 1.2, 2, 0, cv::Size(110, 110));
-            if (detected_faces.empty()) {
-                cout << 0.f << endl;
-                usleep(30000);
-                continue;
-            }
-            cv::rectangle(frame, detected_faces[0], {255, 0, 0});
             // Rescale the V&J facebox to make it more like an ibug-facebox:
             // (also make sure the bounding box is square, V&J's is square)
             Rect ibug_facebox = rescale_facebox(detected_faces[0], 0.85, 0.2);
@@ -209,7 +219,8 @@ int main(int argc, char *argv[]) {
                                                                        15.0f, cpp17::nullopt, shape_coefficients,
                                                                        blendshape_coefficients, image_points);
 
-        cout << glm::eulerAngles(rendering_params.get_rotation())[1] << endl;
+        last_angle = glm::eulerAngles(rendering_params.get_rotation())[1];
+        cout << last_angle << endl;
         usleep(30000);
     }
 
