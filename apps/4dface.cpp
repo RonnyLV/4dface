@@ -26,6 +26,7 @@
 #include "eos/fitting/contour_correspondence.hpp"
 #include "eos/fitting/closest_edge_fitting.hpp"
 #include "eos/fitting/RenderingParameters.hpp"
+#include "eos/render/draw_utils.hpp"
 
 #include "rcr/model.hpp"
 #include "cereal/cereal.hpp"
@@ -56,6 +57,8 @@ using std::cout;
 using std::endl;
 using std::vector;
 using std::string;
+
+const bool DEBUG = false;
 
 /**
  * This app demonstrates facial landmark tracking, estimation of the 3D pose
@@ -154,7 +157,6 @@ int main(int argc, char *argv[]) {
 
     bool have_face = false;
     rcr::LandmarkCollection<Vec2f> current_landmarks;
-    WeightedIsomapAveraging isomap_averaging(30.f); // merge all triangles that are facing <60� towards the camera
     PcaCoefficientMerging pca_shape_merging;
 
     const int MAX_ATTEMPTS = 15;
@@ -175,10 +177,15 @@ int main(int argc, char *argv[]) {
         if (detected_faces.empty()) {
             if (++failed_attempts > MAX_ATTEMPTS) {
                 cout << 0.f << endl;
+                have_face = false;
             } else {
                 cout << last_angle << endl;
             }
-            usleep(30000);
+            if (DEBUG) {
+                cv::waitKey(30);
+            } else {
+                usleep(30000);
+            }
             continue;
         }
 
@@ -221,7 +228,15 @@ int main(int argc, char *argv[]) {
 
         last_angle = glm::eulerAngles(rendering_params.get_rotation())[1];
         cout << last_angle << endl;
-        usleep(30000);
+
+        if (DEBUG) {
+            cv::waitKey(30);
+            render::draw_wireframe(frame, mesh, rendering_params.get_modelview(), rendering_params.get_projection(),
+                                   fitting::get_opencv_viewport(frame.cols, frame.rows));
+            cv::imshow("render", frame);
+        } else {
+            usleep(30000);
+        }
     }
 
     return EXIT_SUCCESS;
