@@ -1,2 +1,5 @@
 # Ignore the user-specific initial_cache file
 initial_cache.cmake
+cmake-build*/
+install/
+.idea/
